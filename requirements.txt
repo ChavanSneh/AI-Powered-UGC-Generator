@@ -1,0 +1,13 @@
+streamlit
+torch
+torchvision
+torchaudio
+diffusers
+transformers
+# edge-tts # Removed if you are using HuggingFace TTS from voice_gen.py
+# asyncio # Often a dependency of others, or for async operations, rarely needed explicitly in requirements unless for a specific async library
+opencv-python-headless # Prefer -headless for deployment, or opencv-python if strictly desktop with display
+numpy
+librosa # Common for audio processing, likely used by lipsync or other audio components
+soundfile # Explicitly added for saving WAV files in voice_gen.py
+tqdm # For progress bars, often a dependency, good to include if used directly

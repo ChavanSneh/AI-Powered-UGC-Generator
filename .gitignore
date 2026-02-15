@@ -1,0 +1,19 @@
+# Environments
+venv/
+.env
+Wav2Lip/wavenv/
+
+# AI Models & Weights (The Heavy Stuff)
+/models/                     <-- The '/' at the start means "only the main models folder"
+Wav2Lip/checkpoints/
+*.pth
+*.onnx
+*.safetensors
+
+# Temporary Processing Folders
+temp/
+results/
+
+# Python junk
+__pycache__/
+*.pyc
