@@ -35,7 +35,8 @@ def generate_warrior_video(image_path, audio_path, nosmooth=False, pads=[0, 20, 
             '--audio', audio_path,
             '--outfile', output_path,
             '--pads', str(pads[0]), str(pads[1]), str(pads[2]), str(pads[3]),
-            '--resize_factor', '2'
+            '--resize_factor', '1',
+            '--device', 'cpu'
         ]
 
         if nosmooth:
