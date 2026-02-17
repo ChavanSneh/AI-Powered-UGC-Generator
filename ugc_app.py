@@ -1,7 +1,6 @@
 import streamlit as st
 import os
 import shutil
-import time
 
 # --- COMMAND CENTER IMPORTS ---
 from src.image_gen import generate_avatar
@@ -16,18 +15,18 @@ AVATAR_IMAGE_NAME = "persona_avatar.png"
 VOICE_AUDIO_NAME = "persona_voice.wav"
 
 project_root = os.path.dirname(os.path.abspath(__file__))
-avatar_output_path = os.path.join(project_root, ASSETS_DIR, AVATAR_IMAGE_NAME)
-audio_output_path = os.path.join(project_root, ASSETS_DIR, VOICE_AUDIO_NAME)
-output_video_path = os.path.join(project_root, ASSETS_DIR, OUTPUT_VIDEO_NAME)
-temp_path = os.path.join(project_root, TEMP_DIR)
+# These ensure we always use absolute paths for the backend
+avatar_output_path = os.path.normpath(os.path.join(project_root, ASSETS_DIR, AVATAR_IMAGE_NAME))
+audio_output_path = os.path.normpath(os.path.join(project_root, ASSETS_DIR, VOICE_AUDIO_NAME))
+output_video_path = os.path.normpath(os.path.join(project_root, ASSETS_DIR, OUTPUT_VIDEO_NAME))
+temp_path = os.path.normpath(os.path.join(project_root, TEMP_DIR))
 
-# Ensure the battlefield is ready
+# Ensure directories exist
 for folder in [ASSETS_DIR, TEMP_DIR]:
-    if not os.path.exists(folder):
-        os.makedirs(folder)
+    os.makedirs(os.path.join(project_root, folder), exist_ok=True)
 
+# --- (PERSONA_ATTRIBUTES and SCENARIO_ATTRIBUTES remain unchanged) ---
 # --- MARKETING ATTRIBUTES DICTIONARY ---
-# (I am keeping your PERSONA_ATTRIBUTES and SCENARIO_ATTRIBUTES as they are perfect)
 PERSONA_ATTRIBUTES = {
     "Everyday Consumer Testimonial": {
         "Age Range": ["20s", "30s", "40s"],
@@ -93,8 +92,7 @@ def build_image_prompt_ui():
         cam = st.selectbox("Framing:", list(s_attr["Camera Angle"].keys()))
 
     pos_prompt = f"A high-quality, photorealistic portrait of a {age} year old {eth} {gender}, wearing {p_attr['Clothing Style'][cloth]}, with a {p_attr['Emotional Expression'][emotion]} expression. Setting: {s_attr['Background/Setting'][bg]}, {s_attr['Lighting'][light]} lighting, {s_attr['Camera Angle'][cam]} angle. Professional marketing content, social media ready, natural skin texture."
-    
-    neg_prompt = "ugly, deformed, cartoon, anime, 3d render, painting, warrior, helmet, armor, chrome, futuristic, vintage, sci-fi, blurry, low resolution, watermark, text"
+    neg_prompt = "ugly, deformed, cartoon, anime, 3d render, painting, helmet, armor, chrome, futuristic, vintage, sci-fi, blurry, low resolution, watermark, text"
     
     return pos_prompt, neg_prompt
 
@@ -108,11 +106,12 @@ if 'current_video_path' not in st.session_state: st.session_state.current_video_
 
 st.title("📈 UGC Marketing Content Generator")
 
-# --- SIDEBAR: TECHNICAL OVERRIDES ---
+# --- SIDEBAR: TECHNICAL OVERRIDES & RESET ---
 with st.sidebar:
-    st.title("⚙️ Technical Overrides")
-    st.info("Fine-tune the animation engine below.")
+    st.title("⚙️ Engine Control")
+    st.info("Fine-tune the animation engine or reset the forge below.")
     
+    # Animation Controls
     animator_nosmooth = st.checkbox("Disable Smoothing", value=False)
     st.write("Mouth Padding (Pads):")
     p_top = st.slider("Top", 0, 20, 0)
@@ -122,15 +121,24 @@ with st.sidebar:
     animator_pads = [p_top, p_bottom, p_left, p_right]
     
     st.divider()
-    if st.button("🧹 Clear All Assets"):
+    
+    # THE RESET BUTTON (Ghost Face Killer)
+    if st.button("🧹 RESET FORGE & CLEAR ASSETS", use_container_width=True, type="primary"):
+        # 1. Clear physical files
         target_dirs = [os.path.join(project_root, ASSETS_DIR), temp_path]
         for folder in target_dirs:
-            if os.path.exists(folder): shutil.rmtree(folder)
+            if os.path.exists(folder):
+                shutil.rmtree(folder)
             os.makedirs(folder, exist_ok=True)
-        st.session_state.clear()
+        
+        # 2. Wipe the session state so the UI forgets the old paths
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+            
+        st.toast("Forge Reset! All ghost data purged.")
         st.rerun()
 
-# --- TABS (Single Declaration) ---
+# --- TABS ---
 tab_image, tab_voice, tab_animate = st.tabs([
     "🎨 Generate Persona Image", 
     "🎙️ Craft Persona Voice", 
@@ -148,19 +156,18 @@ with tab_image:
             percent = int((step / 15) * 100)
             progress_bar.progress(percent, text=f"Forging Persona: Step {step}/15")
 
-        with st.spinner("Processing Pixels (CPU Mode)..."):
-            result_path = generate_avatar(
-                img_prompt, 
-                neg_prompt, 
-                output_path=avatar_output_path,
-                callback=update_ui_progress
-            )
-            if result_path and "Error" not in result_path:
-                progress_bar.empty()
-                st.session_state.current_avatar_path = result_path 
-                st.success("AI Persona Image Ready!")
-            else:
-                st.error(f"Forge Error: {result_path}")
+        result_path = generate_avatar(
+            img_prompt, 
+            neg_prompt, 
+            output_path=avatar_output_path,
+            callback=update_ui_progress
+        )
+        if result_path and "Error" not in result_path:
+            progress_bar.empty()
+            st.session_state.current_avatar_path = result_path 
+            st.success("AI Persona Image Ready!")
+        else:
+            st.error(f"Forge Error: {result_path}")
 
     if st.session_state.current_avatar_path and os.path.exists(st.session_state.current_avatar_path):
         st.image(st.session_state.current_avatar_path, width=400, caption="Current Persona")
@@ -189,23 +196,22 @@ with tab_animate:
     st.header("3. Final Content Assembly")
     if st.session_state.current_avatar_path and st.session_state.current_audio_path:
         st.info("✅ Ready to animate.")
+        
         if st.button("🔥 START CONTENT ANIMATION", use_container_width=True):
-            if os.path.exists(temp_path): shutil.rmtree(temp_path)
-            os.makedirs(temp_path, exist_ok=True)
+            # No spinner here, the animator's progress bar will take over
+            result = generate_ugc_video(
+                image_path=st.session_state.current_avatar_path,
+                audio_path=st.session_state.current_audio_path,
+                nosmooth=animator_nosmooth,
+                pads=animator_pads
+            )
 
-            with st.spinner("Running Lip-Sync (Wav2Lip)..."):
-                result = generate_ugc_video(
-                    image_path=st.session_state.current_avatar_path,
-                    audio_path=st.session_state.current_audio_path,
-                    nosmooth=animator_nosmooth,
-                    pads=animator_pads
-                )
-                if "Success" in result or os.path.exists(output_video_path):
-                    st.session_state.current_video_path = output_video_path
-                    st.success("Marketing Content Animation Complete!")
-                    st.balloons()
-                else:
-                    st.error(f"Animation failed: {result}")
+            if "Success" in result:
+                st.session_state.current_video_path = output_video_path
+                st.success("Marketing Content Animation Complete!")
+                st.balloons()
+            else:
+                st.error(f"Animation failed: {result}")
 
         if st.session_state.current_video_path and os.path.exists(st.session_state.current_video_path):
             st.divider()
