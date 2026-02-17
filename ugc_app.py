@@ -6,7 +6,7 @@ import time
 # --- COMMAND CENTER IMPORTS ---
 from src.image_gen import generate_avatar
 from src.voice_gen import generate_voice
-from src.animator import generate_warrior_video
+from src.animator import generate_ugc_video
 
 # --- CONFIGURATION & PATHS ---
 ASSETS_DIR = "assets"
@@ -99,7 +99,7 @@ def build_image_prompt_ui():
     return pos_prompt, neg_prompt
 
 # --- MAIN APP ---
-st.set_page_config(page_title="UGC Content Engine", layout="wide", page_icon="📈")
+st.set_page_config(page_title="AI-Powered UGC Generator", layout="wide", page_icon="📈")
 
 # Session State Initialization
 if 'current_avatar_path' not in st.session_state: st.session_state.current_avatar_path = None
@@ -110,7 +110,7 @@ st.title("📈 UGC Marketing Content Generator")
 
 # --- SIDEBAR: TECHNICAL OVERRIDES ---
 with st.sidebar:
-    st.title("🛡️ Warrior Settings")
+    st.title("⚙️ Technical Overrides")
     st.info("Fine-tune the animation engine below.")
     
     animator_nosmooth = st.checkbox("Disable Smoothing", value=False)
@@ -194,7 +194,7 @@ with tab_animate:
             os.makedirs(temp_path, exist_ok=True)
 
             with st.spinner("Running Lip-Sync (Wav2Lip)..."):
-                result = generate_warrior_video(
+                result = generate_ugc_video(
                     image_path=st.session_state.current_avatar_path,
                     audio_path=st.session_state.current_audio_path,
                     nosmooth=animator_nosmooth,

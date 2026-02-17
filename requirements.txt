@@ -1,20 +1,22 @@
-# --- CORE ENGINE ---
-streamlit
-torch --index-url https://download.pytorch.org/whl/cpu
-torchvision --index-url https://download.pytorch.org/whl/cpu
-torchaudio --index-url https://download.pytorch.org/whl/cpu
+# --- SYSTEM CORE ---
+# Specifically fetching CPU versions to save space and prevent CUDA errors
+--index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+torchaudio
 
-# --- IMAGE GENERATION (CPU OPTIMIZED) ---
+# --- UI & ASYNC ---
+streamlit
+nest_asyncio
+edge-tts
+
+# --- IMAGE ENGINE (STABLE DIFFUSION) ---
 diffusers
 transformers
 accelerate
 safetensors
 
-# --- VOICE GENERATION ---
-edge-tts
-nest_asyncio
-
-# --- ANIMATION & UTILITIES ---
+# --- ANIMATOR & AUDIO TOOLS ---
 opencv-python
 numpy
 librosa

@@ -1,7 +1,7 @@
 import os
 import subprocess
 
-def generate_warrior_video(image_path, audio_path, nosmooth=False, pads=[0, 20, 0, 0]):
+def generate_ugc_video(image_path, audio_path, nosmooth=False, pads=[0, 20, 0, 0]):
     # Get the base project directory
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     
