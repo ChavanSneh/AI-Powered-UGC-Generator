@@ -1,13 +1,18 @@
 import streamlit as st
 import os
 import shutil
+import time
 
-# --- COMMAND CENTER IMPORTS ---
-from src.image_gen import generate_avatar
-from src.voice_gen import generate_voice
-from src.animator import generate_ugc_video
+# --- IMPORTS ---
+# Ensure these exist in your /src folder
+try:
+    from src.image_gen import generate_avatar
+    from src.voice_gen import generate_voice
+    from src.animator import generate_ugc_video 
+except ImportError as e:
+    st.error(f"Module Import Error: {e}. Please ensure /src files are present.")
 
-# --- CONFIGURATION & PATHS ---
+# --- Configuration & Paths ---
 ASSETS_DIR = "assets"
 TEMP_DIR = "temp"
 OUTPUT_VIDEO_NAME = "ugc_video.mp4"
@@ -15,208 +20,191 @@ AVATAR_IMAGE_NAME = "persona_avatar.png"
 VOICE_AUDIO_NAME = "persona_voice.wav"
 
 project_root = os.path.dirname(os.path.abspath(__file__))
-# These ensure we always use absolute paths for the backend
-avatar_output_path = os.path.normpath(os.path.join(project_root, ASSETS_DIR, AVATAR_IMAGE_NAME))
-audio_output_path = os.path.normpath(os.path.join(project_root, ASSETS_DIR, VOICE_AUDIO_NAME))
-output_video_path = os.path.normpath(os.path.join(project_root, ASSETS_DIR, OUTPUT_VIDEO_NAME))
-temp_path = os.path.normpath(os.path.join(project_root, TEMP_DIR))
+avatar_output_path = os.path.join(project_root, ASSETS_DIR, AVATAR_IMAGE_NAME)
+audio_output_path = os.path.join(project_root, ASSETS_DIR, VOICE_AUDIO_NAME)
+output_video_path = os.path.join(project_root, ASSETS_DIR, OUTPUT_VIDEO_NAME)
+temp_path = os.path.join(project_root, TEMP_DIR)
 
 # Ensure directories exist
-for folder in [ASSETS_DIR, TEMP_DIR]:
-    os.makedirs(os.path.join(project_root, folder), exist_ok=True)
+os.makedirs(os.path.join(project_root, ASSETS_DIR), exist_ok=True)
+os.makedirs(temp_path, exist_ok=True)
 
-# --- (PERSONA_ATTRIBUTES and SCENARIO_ATTRIBUTES remain unchanged) ---
-# --- MARKETING ATTRIBUTES DICTIONARY ---
+# --- GLOBAL DICTIONARIES ---
 PERSONA_ATTRIBUTES = {
     "Everyday Consumer Testimonial": {
-        "Age Range": ["20s", "30s", "40s"],
+        "Age Range": {"20s": "person in their 20s", "30s": "person in their 30s", "40s": "person in their 40s"},
         "Gender": ["Female", "Male", "Non-binary"],
+        "Hair Length": ["Short hair", "Medium-length hair", "Long hair", "Bald/Shaved"],
         "Ethnicity": ["Caucasian", "Black", "Asian", "Hispanic", "Middle Eastern"],
         "Clothing Style": {"Casual": "casual t-shirt", "Smart Casual": "blouse/button-down", "Activewear": "gym gear"},
-        "Emotional Expression": {"Friendly": "warm smile", "Enthusiastic": "energetic", "Thoughtful": "calm"}
+        "Emotional Expression": {"Subtle Smile": "gentle smile", "Engaging Smile": "warm smile", "Neutral/Calm": "calm", "Enthusiastic": "energetic grin", "Thoughtful": "pensive"},
     },
     "Lifestyle Product Demo": {
-        "Age Range": ["20s", "30s", "40s"],
+        "Age Range": {"20s": "person in their 20s", "30s": "person in their 30s", "40s": "person in their 40s"},
         "Gender": ["Female", "Male", "Non-binary"],
+        "Hair Length": ["Short hair", "Medium-length hair", "Long hair", "Pixie cut"],
         "Ethnicity": ["Caucasian", "Black", "Asian", "Hispanic", "Middle Eastern"],
-        "Clothing Style": {"Fitness": "activewear", "Tech": "smart casual hoodie", "Home": "cozy sweater"},
-        "Emotional Expression": {"Enthusiastic": "excited", "Informative": "focused", "Friendly": "approachable"}
+        "Clothing Style": {"Fitness Creator": "activewear", "Beauty Guru": "stylish casual", "Tech Reviewer": "hoodie", "Home Decor Blogger": "cozy sweater"},
+        "Emotional Expression": {"Enthusiastic": "excited", "Informative": "focused", "Friendly": "approachable"},
     },
     "Influencer-Style Recommendation": {
-        "Age Range": ["20s", "30s", "40s"],
+        "Age Range": {"20s": "person in their 20s", "30s": "person in their 30s", "40s": "person in their 40s"},
         "Gender": ["Female", "Male", "Non-binary"],
+        "Hair Length": ["Short hair", "Medium-length hair", "Long hair", "Stylish undercut"],
         "Ethnicity": ["Caucasian", "Black", "Asian", "Hispanic", "Middle Eastern"],
-        "Clothing Style": {"Streetwear": "fashion-forward", "Chic": "stylish tops", "Wellness": "minimalist chic"},
-        "Emotional Expression": {"Confident": "poised", "Engaging": "smiling", "Aspirational": "polished"}
+        "Clothing Style": {"Streetwear": "fashion-forward", "Chic": "stylish tops", "Wellness": "minimalist chic", "Travel": "layered practical outfit"},
+        "Emotional Expression": {"Confident": "poised", "Engaging": "animated", "Aspirational": "polished"},
     }
 }
 
 SCENARIO_ATTRIBUTES = {
     "Everyday Consumer Testimonial": {
-        "Background/Setting": {"Living Room": "cozy living room", "Kitchen": "modern kitchen", "Office": "clean office"},
+        "Background/Setting": {"Home - Living Room": "cozy living room", "Home - Kitchen": "modern kitchen", "Simple Studio": "neutral grey studio", "Office": "clean office desk"},
         "Lighting": {"Natural": "daylight", "Soft": "diffused studio", "Bright": "crisp professional"},
-        "Camera Angle": {"Headshot": "close-up", "Waist-up": "medium shot"}
+        "Camera Angle/Framing": {"Headshot": "close-up", "Waist-up": "medium shot", "Full Body": "standing shot"},
     },
     "Lifestyle Product Demo": {
-        "Background/Setting": {"Home Gym": "gym background", "Vanity": "makeup table", "Desk": "tech setup", "Kitchen": "kitchen counter"},
-        "Lighting": {"Bright": "vivid", "Studio": "polished", "Soft": "warm diffused"},
-        "Camera Angle": {"Close-up": "tight shot", "Waist-up": "medium shot"}
+        "Background/Setting": {"Fitness - Home Gym": "home gym", "Beauty - Vanity Table": "vanity table", "Tech - Modern Desk": "tech setup", "Home Decor - Living Room": "stylish living room"},
+        "Lighting": {"Bright": "vivid", "Studio-like": "crisp professional", "Soft": "warm diffused"},
+        "Camera Angle/Framing": {"Close-up": "tight shot", "Waist-up": "medium shot"},
     },
     "Influencer-Style Recommendation": {
-        "Background/Setting": {"Urban Apartment": "modern apartment", "Cafe": "trendy cafe", "Travel": "scenic outdoor"},
-        "Lighting": {"Bright Natural": "airy window light", "Studio": "professional polished"},
-        "Camera Angle": {"Medium Personality": "waist-up shot", "Dynamic": "lifestyle tilt"}
+        "Background/Setting": {"Urban Apartment": "modern urban apartment", "Chic Café": "trendy cafe", "Travel Spot": "scenic outdoor", "Minimalist Studio": "clean studio background"},
+        "Lighting": {"Bright Natural": "airy window light", "Professional Studio": "polished studio"},
+        "Camera Angle/Framing": {"Medium": "waist-up shot", "Dynamic": "lifestyle tilt angle"},
     }
 }
 
-# --- PROMPT ENGINE ---
-def build_image_prompt_ui():
-    st.subheader("Choose Your Marketing Scenario & Persona")
-    selected_scenario = st.selectbox("Select Scenario:", list(PERSONA_ATTRIBUTES.keys()), key="scen_sel")
-    
-    st.divider()
-    p_attr = PERSONA_ATTRIBUTES[selected_scenario]
-    s_attr = SCENARIO_ATTRIBUTES[selected_scenario]
+# --- HELPER FUNCTIONS ---
+def clear_assets():
+    st.session_state.final_prompt = ""
+    st.session_state.final_negative = ""
+    st.session_state.current_avatar = None
+    st.session_state.current_audio = None
+    st.session_state.current_video = None
+    for folder in [os.path.join(project_root, ASSETS_DIR), temp_path]:
+        if os.path.exists(folder):
+            for f in os.listdir(folder):
+                try: os.remove(os.path.join(folder, f))
+                except Exception as e: st.error(f"Cleanup Error: {e}")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        age = st.selectbox("Age Range:", p_attr["Age Range"])
-        gender = st.radio("Gender:", p_attr["Gender"], horizontal=True)
-        eth = st.selectbox("Ethnicity:", p_attr["Ethnicity"])
-    
-    with col2:
-        cloth = st.selectbox("Clothing Style:", list(p_attr["Clothing Style"].keys()))
-        emotion = st.selectbox("Expression:", list(p_attr["Emotional Expression"].keys()))
-        bg = st.selectbox("Setting:", list(s_attr["Background/Setting"].keys()))
-        light = st.selectbox("Lighting:", list(s_attr["Lighting"].keys()))
-        cam = st.selectbox("Framing:", list(s_attr["Camera Angle"].keys()))
-
-    pos_prompt = f"A high-quality, photorealistic portrait of a {age} year old {eth} {gender}, wearing {p_attr['Clothing Style'][cloth]}, with a {p_attr['Emotional Expression'][emotion]} expression. Setting: {s_attr['Background/Setting'][bg]}, {s_attr['Lighting'][light]} lighting, {s_attr['Camera Angle'][cam]} angle. Professional marketing content, social media ready, natural skin texture."
-    neg_prompt = "ugly, deformed, cartoon, anime, 3d render, painting, helmet, armor, chrome, futuristic, vintage, sci-fi, blurry, low resolution, watermark, text"
-    
-    return pos_prompt, neg_prompt
-
-# --- MAIN APP ---
+# --- APP LAYOUT ---
 st.set_page_config(page_title="AI-Powered UGC Generator", layout="wide", page_icon="📈")
 
 # Session State Initialization
-if 'current_avatar_path' not in st.session_state: st.session_state.current_avatar_path = None
-if 'current_audio_path' not in st.session_state: st.session_state.current_audio_path = None
-if 'current_video_path' not in st.session_state: st.session_state.current_video_path = None
+for key in ['final_prompt', 'final_negative', 'current_avatar', 'current_audio', 'current_video']:
+    if key not in st.session_state: st.session_state[key] = None if 'current' in key else ""
 
-st.title("📈 UGC Marketing Content Generator")
+st.title("📈 AI-Powered UGC Generator")
+tab_image, tab_voice, tab_animate = st.tabs(["🎨 Persona Image", "🎙️ Craft Voice", "🚀 Animate Content"])
 
-# --- SIDEBAR: TECHNICAL OVERRIDES & RESET ---
-with st.sidebar:
-    st.title("⚙️ Engine Control")
-    st.info("Fine-tune the animation engine or reset the forge below.")
-    
-    # Animation Controls
-    animator_nosmooth = st.checkbox("Disable Smoothing", value=False)
-    st.write("Mouth Padding (Pads):")
-    p_top = st.slider("Top", 0, 20, 0)
-    p_bottom = st.slider("Bottom", 0, 20, 10)
-    p_left = st.slider("Left", 0, 20, 0)
-    p_right = st.slider("Right", 0, 20, 0)
-    animator_pads = [p_top, p_bottom, p_left, p_right]
-    
-    st.divider()
-    
-    # THE RESET BUTTON (Ghost Face Killer)
-    if st.button("🧹 RESET FORGE & CLEAR ASSETS", use_container_width=True, type="primary"):
-        # 1. Clear physical files
-        target_dirs = [os.path.join(project_root, ASSETS_DIR), temp_path]
-        for folder in target_dirs:
-            if os.path.exists(folder):
-                shutil.rmtree(folder)
-            os.makedirs(folder, exist_ok=True)
-        
-        # 2. Wipe the session state so the UI forgets the old paths
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-            
-        st.toast("Forge Reset! All ghost data purged.")
-        st.rerun()
-
-# --- TABS ---
-tab_image, tab_voice, tab_animate = st.tabs([
-    "🎨 Generate Persona Image", 
-    "🎙️ Craft Persona Voice", 
-    "🚀 Animate Content"
-])
-
-# --- PHASE 1: IMAGE ---
+# --- TAB 1: IMAGE ---
 with tab_image:
-    st.header("1. Design Your AI Persona & Scene")
-    img_prompt, neg_prompt = build_image_prompt_ui()
+    st.header("1. Design Your AI Persona")
+    prompt_mode = st.radio("Select Generation Mode:", ["Presets (Guided)", "Manual (Full Control)", "Hybrid"], horizontal=True)
+    default_neg = "ugly, deformed, bad anatomy, cartoon, anime, 3d render, watermark, text, logo, blurry"
+    
+    refinement = ""
+    if prompt_mode == "Hybrid":
+        refinement = st.text_input("Add specific details (e.g. 'holding a phone'):")
 
-    if st.button("🎨 Generate AI Persona Image", use_container_width=True):
-        progress_bar = st.progress(0, text="Igniting AI Engine...")
-        def update_ui_progress(step):
-            percent = int((step / 15) * 100)
-            progress_bar.progress(percent, text=f"Forging Persona: Step {step}/15")
-
-        result_path = generate_avatar(
-            img_prompt, 
-            neg_prompt, 
-            output_path=avatar_output_path,
-            callback=update_ui_progress
-        )
-        if result_path and "Error" not in result_path:
-            progress_bar.empty()
-            st.session_state.current_avatar_path = result_path 
-            st.success("AI Persona Image Ready!")
-        else:
-            st.error(f"Forge Error: {result_path}")
-
-    if st.session_state.current_avatar_path and os.path.exists(st.session_state.current_avatar_path):
-        st.image(st.session_state.current_avatar_path, width=400, caption="Current Persona")
-
-# --- PHASE 2: VOICE ---
-with tab_voice:
-    st.header("2. Craft Persona Voice & Script")
-    v_text = st.text_area("Marketing Script:", "Hi! I just tried this and it's incredible. You need to see the results for yourself!")
-    v_gender = st.radio("Voice Profile:", ["Male", "Female"], horizontal=True)
-
-    if st.button("🎙️ Generate Persona Voice", use_container_width=True):
-        if v_text:
-            with st.spinner(f"Synthesizing {v_gender} Voice..."):
-                res = generate_voice(v_text, gender=v_gender, output_path=audio_output_path)
-                if res and "Error" not in res:
-                    st.session_state.current_audio_path = res 
-                    st.success(f"Voice Ready: {v_gender} profile applied.")
-                else:
-                    st.error(f"Voice failure: {res}")
-
-    if st.session_state.current_audio_path and os.path.exists(st.session_state.current_audio_path):
-        st.audio(st.session_state.current_audio_path)
-
-# --- PHASE 3: ANIMATION ---
-with tab_animate:
-    st.header("3. Final Content Assembly")
-    if st.session_state.current_avatar_path and st.session_state.current_audio_path:
-        st.info("✅ Ready to animate.")
-        
-        if st.button("🔥 START CONTENT ANIMATION", use_container_width=True):
-            # No spinner here, the animator's progress bar will take over
-            result = generate_ugc_video(
-                image_path=st.session_state.current_avatar_path,
-                audio_path=st.session_state.current_audio_path,
-                nosmooth=animator_nosmooth,
-                pads=animator_pads
-            )
-
-            if "Success" in result:
-                st.session_state.current_video_path = output_video_path
-                st.success("Marketing Content Animation Complete!")
-                st.balloons()
-            else:
-                st.error(f"Animation failed: {result}")
-
-        if st.session_state.current_video_path and os.path.exists(st.session_state.current_video_path):
-            st.divider()
-            st.video(st.session_state.current_video_path, loop=True, autoplay=True)
-            with open(st.session_state.current_video_path, "rb") as file:
-                st.download_button("📥 Download Marketing Video", data=file, file_name="ugc_video.mp4")
+    if prompt_mode == "Manual (Full Control)":
+        img_p = st.text_area("Enter Custom Image Prompt:", height=150)
+        neg_p = st.text_area("Negative Prompt:", value=default_neg, height=100)
     else:
-        st.warning("⚠️ You must generate both a Persona Image (Tab 1) and a Voice (Tab 2) first.")
+        selected_scenario = st.selectbox("Select Marketing Scenario:", list(PERSONA_ATTRIBUTES.keys()))
+        p_attr = PERSONA_ATTRIBUTES[selected_scenario]
+        s_attr = SCENARIO_ATTRIBUTES[selected_scenario]
+
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            age_key = st.selectbox("Age Range:", list(p_attr["Age Range"].keys()))
+            gender = st.radio("Gender:", p_attr["Gender"], horizontal=True)
+        with c2:
+            ethnicity = st.selectbox("Ethnicity:", p_attr["Ethnicity"])
+            hair = st.selectbox("Hair Style:", p_attr["Hair Length"])
+        with c3:
+            cloth = st.selectbox("Clothing Style:", list(p_attr["Clothing Style"].keys()))
+            emo = st.selectbox("Expression:", list(p_attr["Emotional Expression"].keys()))
+            intensity = st.slider("Emotion Strength:", 0.5, 1.5, 1.0, 0.1)
+
+        st.divider()
+        bg = st.selectbox("Background Setting:", list(s_attr["Background/Setting"].keys()))
+        lit = st.selectbox("Lighting:", list(s_attr["Lighting"].keys()))
+        cam = st.selectbox("Camera Angle:", list(s_attr["Camera Angle/Framing"].keys()))
+
+        with st.expander("🛠️ Advanced Image Settings"):
+            neg_p = st.text_area("Negative Prompt:", value=default_neg)
+
+        if st.button("📝 Generate Prompt", use_container_width=True):
+            emo_desc = f"({p_attr['Emotional Expression'][emo]}:{intensity})"
+            base = f"Photorealistic portrait of a {p_attr['Age Range'][age_key]} {ethnicity} {gender} with {hair.lower()}, wearing {p_attr['Clothing Style'][cloth]}, {emo_desc} expression, {s_attr['Background/Setting'][bg]}, {lit}, {s_attr['Camera Angle/Framing'][cam]}."
+            st.session_state.final_prompt = f"{base}, {refinement}" if refinement else base
+            st.session_state.final_negative = neg_p
+            st.success("Prompt Prepared!")
+
+    if st.session_state.final_prompt:
+        st.info(f"**Current Prompt:** {st.session_state.final_prompt}")
+        if st.button("🎨 Forge Persona Image", type="primary", use_container_width=True):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            start_time = time.time()
+            steps = 20
+            for step in range(1, steps + 1):
+                elapsed = time.time() - start_time
+                percent = int((step / steps) * 100)
+                if elapsed > 0:
+                    it_per_sec = step / elapsed
+                    rem = (steps - step) / it_per_sec
+                    it_str = f"{1/it_per_sec:.2f}s/it"
+                else: rem, it_str = 0, "Calculating..."
+                bar = "█" * (percent // 4) + " " * (25 - (percent // 4))
+                status_text.code(f"{percent}%|{bar}| {step}/{steps} [{elapsed:.2f}s<{rem:.2f}s, {it_str}]")
+                progress_bar.progress(percent)
+                time.sleep(0.2)
+            
+            res = generate_avatar(st.session_state.final_prompt, st.session_state.final_negative, output_path=avatar_output_path)
+            if res and "Error" not in res:
+                st.session_state.current_avatar = res
+                status_text.success("✅ Forge Complete!")
+            else: st.error(f"Forge Error: {res}")
+
+    if st.session_state.current_avatar and os.path.exists(avatar_output_path):
+        st.image(st.session_state.current_avatar, width=450)
+        with open(avatar_output_path, "rb") as f:
+            st.download_button("💾 Download Persona", data=f, file_name="persona.png", mime="image/png", use_container_width=True)
+
+# --- TAB 2: VOICE ---
+with tab_voice:
+    st.header("2. Craft Persona Voice")
+    v_text = st.text_area("Script:", "Hi! I love this product.")
+    v_gen = st.radio("Voice Gender:", ["Male", "Female"], horizontal=True)
+    if st.button("🎙️ Generate Audio"):
+        with st.spinner("Synthesizing..."):
+            res = generate_voice(v_text, gender=v_gen, output_path=audio_output_path)
+            if res: st.session_state.current_audio = res; st.success("Voice Ready!")
+    if st.session_state.current_audio and os.path.exists(audio_output_path):
+        st.audio(st.session_state.current_audio)
+
+# --- TAB 3: ANIMATION ---
+with tab_animate:
+    st.header("3. Animate Content")
+    if st.session_state.current_avatar and st.session_state.current_audio:
+        if st.button("🚀 START FINAL ANIMATION", type="primary", use_container_width=True):
+            try:
+                if os.path.exists(temp_path): shutil.rmtree(temp_path)
+                os.makedirs(temp_path, exist_ok=True)
+                result = generate_ugc_video(st.session_state.current_avatar, st.session_state.current_audio)
+                if "Success" in result: st.session_state.current_video = output_video_path; st.balloons()
+                else: st.error(result)
+            except Exception as e: st.error(f"Error: {e}")
+        
+        if st.session_state.current_video and os.path.exists(output_video_path):
+            st.video(st.session_state.current_video)
+            with open(output_video_path, "rb") as f:
+                st.download_button("📥 Download Video", data=f, file_name="ugc_video.mp4", mime="video/mp4", use_container_width=True)
+    else: st.warning("⚠️ Missing Assets: Please generate an Image and Voice first.")
+
+with st.sidebar:
+    st.header("Settings")
+    if st.button("🔴 RESET ALL"): clear_assets(); st.rerun()
